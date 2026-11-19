@@ -10,6 +10,21 @@ const port = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
+//global logger middleware to see incoming requests (writing it here because if it is down, the request will be executed before it can be logged)
+app.use((req, res, next) => {
+    console.log(`There's an incoming ${req.method} request to ${req.url}`);
+    next();
+});
+
+// Serve static files from the "public/images" directory when the URL starts with "/images"
+const imagesPath = path.join(__dirname, "public", "images");
+app.use("/images", express.static(imagesPath));
+
+//If no file was found in the images folder, return a 404 error with a JSON response
+app.use("/images", (req, res) => {
+    res.status(404).json({ error: "Image not found" });
+});
+
 
 // connection to MongoDB Atlas
 const uri = process.env.MONGODB_PREFIX + process.env.MONGODB_USERNAME + ":" + process.env.MONGODB_PASSWORD + process.env.MONGODB_URL;

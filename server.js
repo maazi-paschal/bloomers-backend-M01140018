@@ -36,7 +36,7 @@ async function connecttoMongoDB(){
     try{
         await client.connect();
         db = client.db("bloomers");
-        console.log("Successfully connected to MongoDB Atlas");
+        console.log("Successfully connected to database");
     } catch (error) {
         console.error("Error connecting to MongoDB Atlas:", error);
     }
@@ -44,7 +44,7 @@ async function connecttoMongoDB(){
 
 connecttoMongoDB();
 
-//GET all lessons from the "lessons" collection
+//GET all lessons from the "lessons" collection in my MongoDB database and return them as a JSON response
 app.get("/lessons", async (req, res) => {
     try {
 
@@ -60,6 +60,51 @@ app.get("/lessons", async (req, res) => {
         res.status(500).json({ error: "Failed to fetch lessons" });
     }
 });
+
+
+//Helper to escape special characters in a string for use in a regular expression
+function escapeRegex(text){
+    return text.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, "\\$&");
+}
+
+//Searching lessons across text and numeric fields
+app.get("/search", async (req, res) => {
+    try {
+        if (!db) {
+            return res.status(503).json({ error: "Database not connected yet" });
+        }
+
+        const rawQuery = (req.query.q || "").trim();
+
+        //if no search term is provided, just return all lessons
+        if (!rawQuery){
+            const allLessons = await db.collection("lessons").find({}).toArray();
+            return res.status(200).json(allLessons);
+        }
+
+        const safePattern = new RegExp(escapeRegex(rawQuery), "i"); // case-insensitive search
+        const conditions = [
+            {topic: safePattern}, {location: safePattern}, {teacherFirstName: safePattern}, {teacherLastName: safePattern}
+        ];
+
+        //If the query is a valid number, also match exact price or space values
+        const numericQuery = Number(rawQuery);
+        if (!Number.isNaN(numericQuery)) {
+            conditions.push({price: numericQuery}, {space: numericQuery});
+        }
+
+        const results = await db.collection("lessons").find({$or: conditions}).toArray();
+        
+        res.status(200).json(results);
+
+    } catch (error) {
+        console.error("Error searching lessons:", error);
+        res.status(500).json({ error: "Failed to search lessons" });
+    }
+    
+});
+
+
 
 app.listen(port, () => {
     console.log(`Server is running on port ${port}`);

@@ -12,7 +12,7 @@ app.use(express.json());
 
 //global logger middleware to see incoming requests (writing it here because if it is down, the request will be executed before it can be logged)
 app.use((req, res, next) => {
-    console.log(`There's an incoming ${req.method} request to ${req.url}`);
+    console.log(`There's an incoming ${req.method} request to ${req.url} at ${new Date().toLocaleTimeString()}`);
     next();
 });
 

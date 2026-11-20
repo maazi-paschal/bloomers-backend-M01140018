@@ -44,6 +44,23 @@ async function connecttoMongoDB(){
 
 connecttoMongoDB();
 
+//GET all lessons from the "lessons" collection
+app.get("/lessons", async (req, res) => {
+    try {
+
+        if (!db) {
+            return res.status(503).json({ error: "Database not connected yet" });
+        }
+
+        const lessons = await db.collection("lessons").find({}).toArray();
+        res.status(200).json(lessons);
+
+    } catch (error) {
+        console.error("Error fetching lessons:", error);
+        res.status(500).json({ error: "Failed to fetch lessons" });
+    }
+});
+
 app.listen(port, () => {
     console.log(`Server is running on port ${port}`);
 });

@@ -111,11 +111,13 @@ app.get("/search", async (req, res) => {
   }
 });
 
+//POST /orders endpoint to create a new order/booking in the "orders" collection of my Database
 app.post("/orders", async (req, res) => {
   try {
     if (!db) {
       return res.status(503).json({ error: "Database not connected yet" });
     }
+
     const { name, countryCode, phone, lessonIDs, spaces } = req.body;
 
     //To validate the input data
@@ -167,6 +169,48 @@ app.post("/orders", async (req, res) => {
   } catch (error) {
     console.error("Error creating order:", error);
     res.status(500).json({ error: "Failed to create order" });
+  }
+});
+
+//PUT /lessons/:id endpoint to update the remaining space count for a lesson in the database 
+app.put("/lessons/:id", async (req, res) => {
+  try {
+    if (!db) {
+      return res.status(503).json({ error: "Database not connected yet" });
+    }
+
+    const lessonId = Number(req.params.id);
+    if (Number.isNaN(lessonId)) {
+      return res.status(400).json({ error: "Invalid lesson ID" });
+    }
+
+    //Update remaining space count of the lesson if provided in the request body
+    if (req.body.space === undefined) {
+      return res.status(400).json({ error: "Please provide the updated space count" });
+    }
+
+    const updatedSpace = Number(req.body.space);
+    if (Number.isNaN(updatedSpace) || updatedSpace < 0) {
+      return res.status(400).json({ error: "Space must be a valid number of 0 or more" });
+    }
+
+    const result = await db.collection("lessons").updateOne(
+      { id: lessonId },
+      { $set: { space: updatedSpace } }
+    );
+
+    if (result.matchedCount === 0) {
+      return res.status(404).json({ error: "Lesson not found" });
+    }
+
+    const updatedLesson = await db.collection("lessons").findOne({ id: lessonId });
+    res.status(200).json({
+      message: "Lesson space updated successfully",
+      lesson: updatedLesson,
+    });
+  } catch (error) {
+    console.error("Error updating lesson space:", error);
+    res.status(500).json({ error: "Failed to update lesson space" });
   }
 });
 

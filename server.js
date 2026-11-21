@@ -111,7 +111,7 @@ app.get("/search", async (req, res) => {
   }
 });
 
-//POST /orders endpoint to create a new order/booking in the "orders" collection of my Database
+// POST /orders endpoint to create a new order/booking in the "orders" collection of my Database
 app.post("/orders", async (req, res) => {
   try {
     if (!db) {
@@ -120,7 +120,7 @@ app.post("/orders", async (req, res) => {
 
     const { name, countryCode, phone, lessonIDs, spaces } = req.body;
 
-    //To validate the input data
+    // To validate the input data
     if (!name || !String(name).trim()) {
       return res.status(400).json({ error: "Customer name is required" });
     }
@@ -135,8 +135,62 @@ app.post("/orders", async (req, res) => {
     }
 
     const spacesCount = Number(spaces);
-    if (Number.isNaN(spacesCount) || spacesCount < 1) {
-      return res.status(400).json({ error: "Spaces must be more than 1" });
+    if (!Number.isInteger(spacesCount) || spacesCount < 1) {
+      return res
+        .status(400)
+        .json({ error: "Spaces must be a whole number of at least 1" });
+    }
+
+    //Normalize lessonIDs to ensure they are numbers and check for invalid IDs
+    const normalizedLessonIDs = lessonIDs.map((id) => Number(id));
+    if (normalizedLessonIDs.some((id) => Number.isNaN(id))) {
+      return res
+        .status(400)
+        .json({ error: "All lesson IDs must be valid numbers" });
+    }
+
+    //To count how many times each lesson ID appears in lesson IDs
+    const occurrencesByLessonID = new Map();
+    for (const id of normalizedLessonIDs) {
+      occurrencesByLessonID.set(id, (occurrencesByLessonID.get(id) || 0) + 1);
+    }
+
+    const uniqueLessonIDs = [...occurrencesByLessonID.keys()];
+    const matchingLessons = await db
+      .collection("lessons")
+      .find({ id: { $in: uniqueLessonIDs } })
+      .toArray();
+
+    const lessonsById = new Map(
+      matchingLessons.map((lesson) => [lesson.id, lesson]),
+    );
+
+    // My first identified edge case: Checking that evry requested lesson ID exists in the database
+    for (const lessonID of uniqueLessonIDs) {
+      if (!lessonsById.has(lessonID)) {
+        return res
+          .status(400)
+          .json({ error: `Lesson with ID ${lessonID} was not found` });
+      }
+    }
+
+    // My second & third identified edge case: Checking that no lesson is sold out and enough spaces exist for each requested lesson
+    for (const [id, countInOrder] of occurrencesByLessonID.entries()) {
+      const lesson = lessonsById.get(id);
+      const availableSpace = Number(lesson.space ?? 0);
+      const neededSpaces = spacesCount * countInOrder;
+
+      if (availableSpace <= 0) {
+        return res
+          .status(400)
+          .json({ error: `${lesson.topic} has no spaces available` });
+      }
+
+      if (availableSpace < neededSpaces) {
+        return res.status(400).json({
+          error: `Only ${availableSpace} space(s) available for ${lesson.topic}. Requested: ${neededSpaces}`,
+        });
+      }
     }
 
     const cleanName = String(name).trim();
@@ -151,7 +205,7 @@ app.post("/orders", async (req, res) => {
       countryCode: cleanCountryCode,
       phone: cleanPhone,
       fullPhone: `${cleanCountryCode} ${cleanPhone}`,
-      lessonIDs,
+      lessonIDs: normalizedLessonIDs,
       spaces: spacesCount,
       createdAt: new Date().toISOString(),
     };
@@ -159,20 +213,18 @@ app.post("/orders", async (req, res) => {
     // Save the new order to the database
     const result = await db.collection("orders").insertOne(newOrder);
 
-    res
-      .status(201)
-      .json({
-        message: "Order created successfully",
-        orderId: result.insertedId,
-        order: newOrder,
-      });
+    res.status(201).json({
+      message: "Order created successfully",
+      orderId: result.insertedId,
+      order: newOrder,
+    });
   } catch (error) {
     console.error("Error creating order:", error);
     res.status(500).json({ error: "Failed to create order" });
   }
 });
 
-//PUT /lessons/:id endpoint to update the remaining space count for a lesson in the database 
+//PUT /lessons/:id endpoint to update the remaining space count for a lesson in the database
 app.put("/lessons/:id", async (req, res) => {
   try {
     if (!db) {
@@ -184,26 +236,31 @@ app.put("/lessons/:id", async (req, res) => {
       return res.status(400).json({ error: "Invalid lesson ID" });
     }
 
-    //Update remaining space count of the lesson if provided in the request body
+    //Validate the request body to ensure that the space count is provided and is a valid number
     if (req.body.space === undefined) {
-      return res.status(400).json({ error: "Please provide the updated space count" });
+      return res
+        .status(400)
+        .json({ error: "Please provide the updated space count" });
     }
 
     const updatedSpace = Number(req.body.space);
     if (Number.isNaN(updatedSpace) || updatedSpace < 0) {
-      return res.status(400).json({ error: "Space must be a valid number of 0 or more" });
+      return res
+        .status(400)
+        .json({ error: "Space must be a valid number of 0 or more" });
     }
 
-    const result = await db.collection("lessons").updateOne(
-      { id: lessonId },
-      { $set: { space: updatedSpace } }
-    );
+    const result = await db
+      .collection("lessons")
+      .updateOne({ id: lessonId }, { $set: { space: updatedSpace } });
 
     if (result.matchedCount === 0) {
       return res.status(404).json({ error: "Lesson not found" });
     }
 
-    const updatedLesson = await db.collection("lessons").findOne({ id: lessonId });
+    const updatedLesson = await db
+      .collection("lessons")
+      .findOne({ id: lessonId });
     res.status(200).json({
       message: "Lesson space updated successfully",
       lesson: updatedLesson,

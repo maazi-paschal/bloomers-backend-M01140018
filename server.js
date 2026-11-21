@@ -271,6 +271,54 @@ app.put("/lessons/:id", async (req, res) => {
   }
 });
 
+//GET /enrolment/:lessonid endpoint to retrieve all enrolled spaces for a specific lesson from the "orders" collection in the database
+app.get("/enrolment/:lessonid", async (req, res) => {
+  try {
+    if (!db) {
+      return res.status(503).json({ error: "Database not connected yet" });
+    }
+
+    const targetLessonId = Number(req.params.lessonid);
+    if (Number.isNaN(targetLessonId)) {
+      return res.status(400).json({ error: "Invalid lesson ID" });
+    }
+
+    const lesson = await db
+      .collection("lessons")
+      .findOne({ id: targetLessonId });
+    if (!lesson) {
+      return res.status(404).json({ error: "Lesson not found" });
+    }
+
+    const matchingOrders = await db
+      .collection("orders")
+      .find({ lessonIDs: targetLessonId })
+      .toArray();
+
+    let totalEnrolledSpaces = 0;
+    for (const order of matchingOrders) {
+      const orderLessonIDs = Array.isArray(order.lessonIDs)
+        ? order.lessonIDs
+        : [];
+      const occurrencesInOrder = orderLessonIDs.filter(
+        (id) => Number(id) === targetLessonId,
+      ).length;
+      const orderSpaces = Number(order.spaces || 0);
+      totalEnrolledSpaces += occurrencesInOrder * orderSpaces;
+    }
+
+    res.status(200).json({
+      lessonId: targetLessonId,
+      topic: lesson.topic,
+      totalEnrolledSpaces: totalEnrolledSpaces,
+      availableSpaces: lesson.space,
+    });
+  } catch (error) {
+    console.error("Error fetching enrolment data:", error);
+    res.status(500).json({ error: "Failed to fetch lesson enrolment data" });
+  }
+});
+
 app.listen(port, () => {
   console.log(`Server is running on port ${port}`);
 });

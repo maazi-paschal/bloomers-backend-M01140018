@@ -54,14 +54,14 @@ connecttoMongoDB();
 app.get("/lessons", async (req, res) => {
   try {
     if (!db) {
-      return res.status(503).json({ error: "Database not connected yet" });
+      return res.status(503).json({ error: "Database connection unavailable" });
     }
 
     const lessons = await db.collection("lessons").find({}).toArray();
     res.status(200).json(lessons);
   } catch (error) {
     console.error("Error fetching lessons:", error);
-    res.status(500).json({ error: "Failed to fetch lessons" });
+    res.status(500).json({ error: "Unable to load lessons right now. Please try again." });
   }
 });
 
@@ -74,7 +74,7 @@ function escapeRegex(text) {
 app.get("/search", async (req, res) => {
   try {
     if (!db) {
-      return res.status(503).json({ error: "Database not connected yet" });
+      return res.status(503).json({ error: "Database connection unavailable" });
     }
 
     const rawQuery = (req.query.q || "").trim();
@@ -107,7 +107,7 @@ app.get("/search", async (req, res) => {
     res.status(200).json(results);
   } catch (error) {
     console.error("Error searching lessons:", error);
-    res.status(500).json({ error: "Failed to search lessons" });
+    res.status(500).json({ error: "Unable to search lessons right now. Please try again." });
   }
 });
 
@@ -115,30 +115,30 @@ app.get("/search", async (req, res) => {
 app.post("/orders", async (req, res) => {
   try {
     if (!db) {
-      return res.status(503).json({ error: "Database not connected yet" });
+      return res.status(503).json({ error: "Database connection unavailable" });
     }
 
     const { name, countryCode, phone, lessonIDs, spaces } = req.body;
 
     // To validate the input data
     if (!name || !String(name).trim()) {
-      return res.status(400).json({ error: "Customer name is required" });
+      return res.status(400).json({ error: "Your full name is required." });
     }
     if (!countryCode || !String(countryCode).trim()) {
-      return res.status(400).json({ error: "Country code is required" });
+      return res.status(400).json({ error: "A country code is required" });
     }
     if (!phone || !String(phone).trim()) {
-      return res.status(400).json({ error: "Phone number is required" });
+      return res.status(400).json({ error: "Your phone number is required." });
     }
     if (!Array.isArray(lessonIDs) || lessonIDs.length === 0) {
-      return res.status(400).json({ error: "At least one lesson is required" });
+      return res.status(400).json({ error: "Select at least one lesson to book." });
     }
 
     const spacesCount = Number(spaces);
     if (!Number.isInteger(spacesCount) || spacesCount < 1) {
       return res
         .status(400)
-        .json({ error: "Spaces must be a whole number of at least 1" });
+        .json({ error: "Choose at least 1 space per lesson." });
     }
 
     //Normalize lessonIDs to ensure they are numbers and check for invalid IDs
@@ -146,7 +146,7 @@ app.post("/orders", async (req, res) => {
     if (normalizedLessonIDs.some((id) => Number.isNaN(id))) {
       return res
         .status(400)
-        .json({ error: "All lesson IDs must be valid numbers" });
+        .json({ error: "One or more selected lesson IDs are invalid." });
     }
 
     //To count how many times each lesson ID appears in lesson IDs
@@ -220,7 +220,7 @@ app.post("/orders", async (req, res) => {
     });
   } catch (error) {
     console.error("Error creating order:", error);
-    res.status(500).json({ error: "Failed to create order" });
+    res.status(500).json({ error: "Something went wrong while placing your order. Please try again." });
   }
 });
 
@@ -228,7 +228,7 @@ app.post("/orders", async (req, res) => {
 app.put("/lessons/:id", async (req, res) => {
   try {
     if (!db) {
-      return res.status(503).json({ error: "Database not connected yet" });
+      return res.status(503).json({ error: "Database connection unavailable" });
     }
 
     const lessonId = Number(req.params.id);
@@ -267,7 +267,7 @@ app.put("/lessons/:id", async (req, res) => {
     });
   } catch (error) {
     console.error("Error updating lesson space:", error);
-    res.status(500).json({ error: "Failed to update lesson space" });
+    res.status(500).json({ error: "Unable to update lesson space right now. Please try again." });
   }
 });
 
@@ -275,7 +275,7 @@ app.put("/lessons/:id", async (req, res) => {
 app.get("/enrolment/:lessonid", async (req, res) => {
   try {
     if (!db) {
-      return res.status(503).json({ error: "Database not connected yet" });
+      return res.status(503).json({ error: "Database connection unavailable" });
     }
 
     const targetLessonId = Number(req.params.lessonid);
@@ -315,7 +315,7 @@ app.get("/enrolment/:lessonid", async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching enrolment data:", error);
-    res.status(500).json({ error: "Failed to fetch lesson enrolment data" });
+    res.status(500).json({ error: "Unable to load enrolment details right now. Please try again." });
   }
 });
 
